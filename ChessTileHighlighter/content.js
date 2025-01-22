@@ -3,7 +3,12 @@ function type(...args) {return typeof(args)}
 
 function highlightBoard() {
     // print("HIGHLIGHT_BOARD")
-    board_element = document.getElementById("board-single")
+    board_element = null
+    element_ids = ["board-single", "board-play-computer", "board-analysis-board"]
+    for (i=0; i<element_ids.length; i++) {
+        board_element = document.getElementById(element_ids[i])
+        if (board_element !== null) break
+    }
     // print("BOARD_ELEMENT")
     // print(board_element)
     if (board_element === null) return
@@ -1189,8 +1194,11 @@ function highlightBoard() {
     for (file_idx = 1; file_idx <= 8; file_idx++) {
         for (rank_idx = 1; rank_idx <= 8; rank_idx++) {
             position_string = String(10*file_idx+rank_idx)
-            green_level = level_rgb_mapping[player_attack[position_string]]
-            red_level = level_rgb_mapping[opponent_attack[position_string]]
+            // green_level = level_rgb_mapping[player_attack[position_string]]
+            green_level = 0
+            // red_level = level_rgb_mapping[opponent_attack[position_string]]
+            red_level = 0
+            if (opponent_attack[position_string] == 2) red_level = 255
             if ((green_level == 0) & (red_level == 0)) opacity_level = "0"
             else opacity_level = "0.3"
 
