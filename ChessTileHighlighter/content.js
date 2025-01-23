@@ -1,7 +1,20 @@
 function print(...args) {console.log(...args)}
 function type(...args) {return typeof(args)}
+function runEvery(interval_time_seconds, func) {
+    setInterval(func, interval_time_seconds*1000)
+}
+
+function getPositionString(file_idx, rank_idx) {
+    valid_idx_list = [1, 2, 3, 4, 5, 6, 7, 8]
+    position_string = ""
+    if (valid_idx_list.includes(file_idx) && valid_idx_list.includes(rank_idx)) {
+        position_string = String(10*file_idx+rank_idx)
+    }
+    return position_string
+}
 
 function highlightBoard() {
+    // Load Chessboard UI Element
     // print("HIGHLIGHT_BOARD")
     board_element = null
     element_ids = ["board-single", "board-play-computer", "board-analysis-board"]
@@ -13,24 +26,36 @@ function highlightBoard() {
     // print(board_element)
     if (board_element === null) return
 
-    // Add Highlight Elements
+    // Get Position List
+    position_strings = []
+    position_file_idx = {}
+    position_rank_idx = {}
+
     for (file_idx = 1; file_idx <= 8; file_idx++) {
         for (rank_idx = 1; rank_idx <= 8; rank_idx++) {
-            position_string = String(10*file_idx+rank_idx)
-            
-            highlight_div_class_name = "highlight square-"+position_string
-            existing_highlight_divs = document.getElementsByClassName(highlight_div_class_name)
-            if ((existing_highlight_divs === null) || (existing_highlight_divs.length === 0)) {
-                highlight_div = document.createElement("div")
-                highlight_div.className = "highlight square-"+position_string
-                // board_element.appendChild(highlight_div)
-                highlight_div.style = "background-color: rgb(0, 0, 0); opacity: 0.0;"
-                board_element.insertBefore(highlight_div, board_element.firstChild)
-            }
+            position_string = getPositionString(file_idx, rank_idx)
+            position_strings.push(position_string)
+            position_file_idx[position_string] = file_idx
+            position_rank_idx[position_string] = rank_idx
+        }
+    }
+    // print(position_strings.length, position_strings)
+
+    // Add Highlight Elements on UI
+    for (i = 0; i < position_strings.length; i++) {
+        position_string = position_strings[i]
+        highlight_div_class_name = "highlight square-"+position_string
+        existing_highlight_divs = document.getElementsByClassName(highlight_div_class_name)
+        if ((existing_highlight_divs === null) || (existing_highlight_divs.length === 0)) {
+            highlight_div = document.createElement("div")
+            highlight_div.className = "highlight square-"+position_string
+            // board_element.appendChild(highlight_div)
+            highlight_div.style = "background-color: rgb(0, 0, 0); opacity: 0.0;"
+            board_element.insertBefore(highlight_div, board_element.firstChild)
         }
     }
 
-    // Figure Out the Side
+    // Figure Out the Side from UI
     is_white = true
     text_elements = document.querySelector("svg.coordinates").querySelectorAll("text")
     y1 = 0
@@ -53,1165 +78,1154 @@ function highlightBoard() {
     if (y1 > y8) is_white = true
     else is_white = false
     // print("IS_WHITE", is_white)
-
-    // Setup Board
+    
+    // Initialize Tracking Board
     board = {}
     possible_pieces = ["wr", "wn", "wb", "wq", "wk", "wp", "br", "bn", "bb", "bq", "bk", "bp"]
-    for (file_idx = 1; file_idx <= 8; file_idx++) {
-        for (rank_idx = 1; rank_idx <= 8; rank_idx++) {
-            position_string = String(10*file_idx+rank_idx)
-            piece = "empty"
-            for (i = 0; i < possible_pieces.length; i++) {
-                possible_piece = possible_pieces[i]
-                elem = board_element.querySelectorAll(".piece."+possible_piece+".square-"+position_string)
-                if (elem.length > 0) {
-                    // print(position_string, possible_piece, elem)
-                    piece = possible_piece
-                    break
-                }
+    for (i = 0; i < position_strings.length; i++) {
+        position_string = position_strings[i]
+        piece = "empty"
+        for (j = 0; j < possible_pieces.length; j++) {
+            possible_piece = possible_pieces[j]
+            elem = board_element.querySelectorAll(".piece."+possible_piece+".square-"+position_string)
+            if (elem.length > 0) {
+                // print(position_string, possible_piece, elem)
+                piece = possible_piece
+                break
             }
-            board[position_string] = piece
         }
+        board[position_string] = piece
     }
     // print(board)
     
-    // Setup Attack Values
+    // Initialize Attack Values
+    red_intensity_mapping = {0:"0", 1:"0", 2:"255"}
+    green_intensity_mapping = {0:"0", 1:"0", 2:"63"}
+
     white_attack = {}
     black_attack = {}
 
-    green_intensity_mapping = {0:"0", 1:"0", 2:"0"}
-    red_intensity_mapping = {0:"0", 1:"0", 2:"255"}
-
-    for (file_idx = 1; file_idx <= 8; file_idx++) {
-        for (rank_idx = 1; rank_idx <= 8; rank_idx++) {
-            position_string = String(10*file_idx+rank_idx)
-            white_attack[position_string] = 0
-            black_attack[position_string] = 0
-        }
+    for (i = 0; i < position_strings.length; i++) {
+        position_string = position_strings[i]
+        white_attack[position_string] = 0
+        black_attack[position_string] = 0
     }
 
-    // Figure Out Attack Values
-    for (file_idx = 1; file_idx <= 8; file_idx++) {
-        for (rank_idx = 1; rank_idx <= 8; rank_idx++) {
-            position_string = String(10*file_idx+rank_idx)
-
-            // White Pawn
-            if (board[position_string] == "wp") {
-                if (rank_idx <= 7) {
-                    if (file_idx >= 2) {
-                        new_file_idx = file_idx - 1
-                        new_rank_idx = rank_idx + 1
-                        new_position_string = String(10*new_file_idx+new_rank_idx)
-                        white_attack[new_position_string] = 2
-                    }
-                    if (file_idx <= 7) {
-                        new_file_idx = file_idx + 1
-                        new_rank_idx = rank_idx + 1
-                        new_position_string = String(10*new_file_idx+new_rank_idx)
-                        white_attack[new_position_string] = 2
-                    }
-                }
-            }
-
-            // Black Pawn
-            if (board[position_string] == "bp") {
-                if (rank_idx >= 2) {
-                    if (file_idx >= 2) {
-                        new_file_idx = file_idx - 1
-                        new_rank_idx = rank_idx - 1
-                        new_position_string = String(10*new_file_idx+new_rank_idx)
-                        black_attack[new_position_string] = 2
-                    }
-                    if (file_idx <= 7) {
-                        new_file_idx = file_idx + 1
-                        new_rank_idx = rank_idx - 1
-                        new_position_string = String(10*new_file_idx+new_rank_idx)
-                        black_attack[new_position_string] = 2
-                    }
-                }
-            }
-
-            // White Rook
-            if (board[position_string] == "wr") {
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-            }
-
-            // Black Rook
-            if (board[position_string] == "br") {
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-            }
-
-            // White Bishop
-            if (board[position_string] == "wb") {
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-            }
-
-            // Black Bishop
-            if (board[position_string] == "bb") {
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-            }
-
-            // White Queen
-            if (board[position_string] == "wq") {
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-            }
-
-            // Black Queen
-            if (board[position_string] == "bq") {
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx + increment
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx + increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-
-                piece_found = false
-                attack_value = 2
-                for (increment = 1; increment <= 7; increment++) {
-                    new_rank_idx = rank_idx - increment
-                    new_file_idx = file_idx - increment
-                    if (
-                        (new_file_idx < 1)
-                        || (new_file_idx > 8)
-                        || (new_rank_idx < 1)
-                        || (new_rank_idx > 8)
-                    ) break
-
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
-                    if (board[new_position_string] !== "empty") {
-                        piece_found = true
-                        attack_value = 1
-                    }
-                }
-            }
-
-            // White Knight
-            if (board[position_string] == "wn") {
-                new_rank_idx = rank_idx - 2
-                new_file_idx = file_idx - 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
+    for (i = 1; i < position_strings.length; i++) {
+        position_string = position_strings[i]
+        file_idx = position_file_idx[position_string]
+        rank_idx = position_rank_idx[position_string]
+    
+        // White Pawn
+        if (board[position_string] == "wp") {
+            if (rank_idx <= 7) {
+                if (file_idx >= 2) {
+                    new_file_idx = file_idx - 1
+                    new_rank_idx = rank_idx + 1
                     new_position_string = String(10*new_file_idx+new_rank_idx)
                     white_attack[new_position_string] = 2
                 }
-
-                new_rank_idx = rank_idx - 2
-                new_file_idx = file_idx + 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 2
-                new_file_idx = file_idx - 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 2
-                new_file_idx = file_idx + 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx - 1
-                new_file_idx = file_idx - 2
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx - 1
-                new_file_idx = file_idx + 2
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 1
-                new_file_idx = file_idx - 2
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 1
-                new_file_idx = file_idx + 2
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
+                if (file_idx <= 7) {
+                    new_file_idx = file_idx + 1
+                    new_rank_idx = rank_idx + 1
                     new_position_string = String(10*new_file_idx+new_rank_idx)
                     white_attack[new_position_string] = 2
                 }
             }
+        }
 
-            // Black Knight
-            if (board[position_string] == "bn") {
-                new_rank_idx = rank_idx - 2
-                new_file_idx = file_idx - 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
+        // Black Pawn
+        if (board[position_string] == "bp") {
+            if (rank_idx >= 2) {
+                if (file_idx >= 2) {
+                    new_file_idx = file_idx - 1
+                    new_rank_idx = rank_idx - 1
                     new_position_string = String(10*new_file_idx+new_rank_idx)
                     black_attack[new_position_string] = 2
                 }
-
-                new_rank_idx = rank_idx - 2
-                new_file_idx = file_idx + 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 2
-                new_file_idx = file_idx - 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 2
-                new_file_idx = file_idx + 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx - 1
-                new_file_idx = file_idx - 2
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx - 1
-                new_file_idx = file_idx + 2
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 1
-                new_file_idx = file_idx - 2
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 1
-                new_file_idx = file_idx + 2
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-            }
-
-            // White King
-            if (board[position_string] == "wk") {
-                new_rank_idx = rank_idx
-                new_file_idx = file_idx - 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx
-                new_file_idx = file_idx + 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx - 1
-                new_file_idx = file_idx
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 1
-                new_file_idx = file_idx
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 1
-                new_file_idx = file_idx + 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 1
-                new_file_idx = file_idx - 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx - 1
-                new_file_idx = file_idx + 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx - 1
-                new_file_idx = file_idx - 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    white_attack[new_position_string] = 2
-                }
-            }
-
-            // Black King
-            if (board[position_string] == "bk") {
-                new_rank_idx = rank_idx
-                new_file_idx = file_idx - 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx
-                new_file_idx = file_idx + 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx - 1
-                new_file_idx = file_idx
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 1
-                new_file_idx = file_idx
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 1
-                new_file_idx = file_idx + 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx + 1
-                new_file_idx = file_idx - 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx - 1
-                new_file_idx = file_idx + 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
-                    new_position_string = String(10*new_file_idx+new_rank_idx)
-                    black_attack[new_position_string] = 2
-                }
-
-                new_rank_idx = rank_idx - 1
-                new_file_idx = file_idx - 1
-                if (!(
-                    (new_file_idx < 1)
-                    || (new_file_idx > 8)
-                    || (new_rank_idx < 1)
-                    || (new_rank_idx > 8)
-                )) {
+                if (file_idx <= 7) {
+                    new_file_idx = file_idx + 1
+                    new_rank_idx = rank_idx - 1
                     new_position_string = String(10*new_file_idx+new_rank_idx)
                     black_attack[new_position_string] = 2
                 }
             }
         }
+
+        // White Rook
+        if (board[position_string] == "wr") {
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+        }
+
+        // Black Rook
+        if (board[position_string] == "br") {
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+        }
+
+        // White Bishop
+        if (board[position_string] == "wb") {
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+        }
+
+        // Black Bishop
+        if (board[position_string] == "bb") {
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+        }
+
+        // White Queen
+        if (board[position_string] == "wq") {
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = Math.max(attack_value, white_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+        }
+
+        // Black Queen
+        if (board[position_string] == "bq") {
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx + increment
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx + increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+
+            piece_found = false
+            attack_value = 2
+            for (increment = 1; increment <= 7; increment++) {
+                new_rank_idx = rank_idx - increment
+                new_file_idx = file_idx - increment
+                if (
+                    (new_file_idx < 1)
+                    || (new_file_idx > 8)
+                    || (new_rank_idx < 1)
+                    || (new_rank_idx > 8)
+                ) break
+
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = Math.max(attack_value, black_attack[new_position_string])
+                if (board[new_position_string] !== "empty") {
+                    piece_found = true
+                    attack_value = 1
+                }
+            }
+        }
+
+        // White Knight
+        if (board[position_string] == "wn") {
+            new_rank_idx = rank_idx - 2
+            new_file_idx = file_idx - 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 2
+            new_file_idx = file_idx + 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 2
+            new_file_idx = file_idx - 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 2
+            new_file_idx = file_idx + 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 1
+            new_file_idx = file_idx - 2
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 1
+            new_file_idx = file_idx + 2
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 1
+            new_file_idx = file_idx - 2
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 1
+            new_file_idx = file_idx + 2
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+        }
+
+        // Black Knight
+        if (board[position_string] == "bn") {
+            new_rank_idx = rank_idx - 2
+            new_file_idx = file_idx - 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 2
+            new_file_idx = file_idx + 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 2
+            new_file_idx = file_idx - 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 2
+            new_file_idx = file_idx + 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 1
+            new_file_idx = file_idx - 2
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 1
+            new_file_idx = file_idx + 2
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 1
+            new_file_idx = file_idx - 2
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 1
+            new_file_idx = file_idx + 2
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+        }
+
+        // White King
+        if (board[position_string] == "wk") {
+            new_rank_idx = rank_idx
+            new_file_idx = file_idx - 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx
+            new_file_idx = file_idx + 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 1
+            new_file_idx = file_idx
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 1
+            new_file_idx = file_idx
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 1
+            new_file_idx = file_idx + 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 1
+            new_file_idx = file_idx - 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 1
+            new_file_idx = file_idx + 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 1
+            new_file_idx = file_idx - 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                white_attack[new_position_string] = 2
+            }
+        }
+
+        // Black King
+        if (board[position_string] == "bk") {
+            new_rank_idx = rank_idx
+            new_file_idx = file_idx - 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx
+            new_file_idx = file_idx + 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 1
+            new_file_idx = file_idx
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 1
+            new_file_idx = file_idx
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 1
+            new_file_idx = file_idx + 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx + 1
+            new_file_idx = file_idx - 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 1
+            new_file_idx = file_idx + 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+
+            new_rank_idx = rank_idx - 1
+            new_file_idx = file_idx - 1
+            if (!(
+                (new_file_idx < 1)
+                || (new_file_idx > 8)
+                || (new_rank_idx < 1)
+                || (new_rank_idx > 8)
+            )) {
+                new_position_string = String(10*new_file_idx+new_rank_idx)
+                black_attack[new_position_string] = 2
+            }
+        }
     }
 
-    // Highlight Attack Values
+    // Highlight Attack Values on UI
     player_attack = black_attack
     opponent_attack = white_attack
     if (is_white) {
         player_attack = white_attack
         opponent_attack = black_attack
     }
-    for (file_idx = 1; file_idx <= 8; file_idx++) {
-        for (rank_idx = 1; rank_idx <= 8; rank_idx++) {
-            position_string = String(10*file_idx+rank_idx)
-            green_level = green_intensity_mapping[player_attack[position_string]]
-            red_level = red_intensity_mapping[opponent_attack[position_string]]
-            if (opponent_attack[position_string] == 2) red_level = 255
-            if ((green_level == 0) & (red_level == 0)) opacity_level = "0"
-            else opacity_level = "0.3"
+    for (i = 0; i < position_strings.length; i++) {
+        position_string = position_strings[i]
+        green_level = green_intensity_mapping[player_attack[position_string]]
+        red_level = red_intensity_mapping[opponent_attack[position_string]]
+        if (opponent_attack[position_string] == 2) red_level = 255
+        if ((green_level == 0) & (red_level == 0)) opacity_level = "0"
+        else opacity_level = "0.3"
 
-            highlight_div_class_name = "highlight square-"+position_string
-            highlight_div = document.getElementsByClassName(highlight_div_class_name)[0]
-            highlight_div.style = "background-color: rgb("+red_level+", "+green_level+", 0); opacity: "+opacity_level+";"
-        }
+        highlight_div_class_name = "highlight square-"+position_string
+        highlight_div = document.getElementsByClassName(highlight_div_class_name)[0]
+        highlight_div.style = "background-color: rgb("+red_level+", "+green_level+", 0); opacity: "+opacity_level+";"
     }
-}
-
-function runEvery(interval_time_seconds, func) {
-    setInterval(func, interval_time_seconds*1000)
 }
 
 runEvery(0.5, ()=>{highlightBoard()})
