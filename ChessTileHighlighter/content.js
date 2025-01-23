@@ -78,7 +78,10 @@ function highlightBoard() {
     // Setup Attack Values
     white_attack = {}
     black_attack = {}
-    level_rgb_mapping = {0:"0", 1:"127", 2:"255"}
+
+    green_intensity_mapping = {0:"0", 1:"0", 2:"0"}
+    red_intensity_mapping = {0:"0", 1:"0", 2:"255"}
+
     for (file_idx = 1; file_idx <= 8; file_idx++) {
         for (rank_idx = 1; rank_idx <= 8; rank_idx++) {
             position_string = String(10*file_idx+rank_idx)
@@ -1194,10 +1197,8 @@ function highlightBoard() {
     for (file_idx = 1; file_idx <= 8; file_idx++) {
         for (rank_idx = 1; rank_idx <= 8; rank_idx++) {
             position_string = String(10*file_idx+rank_idx)
-            // green_level = level_rgb_mapping[player_attack[position_string]]
-            green_level = 0
-            // red_level = level_rgb_mapping[opponent_attack[position_string]]
-            red_level = 0
+            green_level = green_intensity_mapping[player_attack[position_string]]
+            red_level = red_intensity_mapping[opponent_attack[position_string]]
             if (opponent_attack[position_string] == 2) red_level = 255
             if ((green_level == 0) & (red_level == 0)) opacity_level = "0"
             else opacity_level = "0.3"
