@@ -16,7 +16,7 @@ function highlightBoard() {
     // Load Chessboard UI Element
     // print("HIGHLIGHT_BOARD")
     board_element = null
-    element_ids = ["board-single", "board-play-computer", "board-analysis-board"]
+    element_ids = ["board-single", "board-play-computer", "board-analysis-board", "board-primary"]
     for (i=0; i<element_ids.length; i++) {
         board_element = document.getElementById(element_ids[i])
         if (board_element !== null) break
@@ -828,8 +828,8 @@ function highlightBoard() {
         player_attack = white_attack
         opponent_attack = black_attack
     }
-    red_intensity_mapping = {0:"0", 1:"0", 2:"255"}
-    green_intensity_mapping = {0:"0", 1:"0", 2:"255"}
+    red_intensity_mapping = {0:"0", 1:"55", 2:"255"}
+    green_intensity_mapping = {0:"0", 1:"0", 2:"0"}
     for (i = 0; i < position_strings.length; i++) {
         position_string = position_strings[i]
         green_level = green_intensity_mapping[player_attack[position_string]]
